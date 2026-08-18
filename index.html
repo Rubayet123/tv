@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>My TV Box</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <style>
+    body { margin:0; background:#111; color:#fff; font-family:system-ui; }
+    #player { width:100%; max-height:70vh; background:#000; }
+    #channels { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px; padding:15px; }
+    .ch { background:#222; padding:12px; border-radius:8px; cursor:pointer; text-align:center; }
+    .ch:hover, .ch.active { background:#e50914; }
+  </style>
+</head>
+<body>
+  <video id="player" controls autoplay></video>
+  <div id="channels"></div>
+
+  <script>
+    const video = document.getElementById('player');
+    let hls = null;
+
+    // Put your M3U URL here (or host the file yourself)
+    const PLAYLIST_URL = 'https://raw.githubusercontent.com/HumayunShariarHimu/TvBox/main/github.m3u';
+
+    async function loadPlaylist() {
+      const res = await fetch(PLAYLIST_URL);
+      const text = await res.text();
+      const channels = parseM3U(text);
+      renderChannels(channels);
+      if (channels.length) play(channels[0].url);
+    }
+
+    function parseM3U(content) {
+      const lines = content.split(/\r?\n/);
+      const channels = [];
+      let name = '';
+      for (const line of lines) {
+        if (line.startsWith('#EXTINF')) {
+          name = line.split(',').pop().trim();
+        } else if (line && !line.startsWith('#')) {
+          channels.push({ name, url: line.trim() });
+        }
+      }
+      return channels;
+    }
+
+    function renderChannels(channels) {
+      const box = document.getElementById('channels');
+      box.innerHTML = '';
+      channels.forEach(ch => {
+        const el = document.createElement('div');
+        el.className = 'ch';
+        el.textContent = ch.name;
+        el.onclick = () => {
+          document.querySelectorAll('.ch').forEach(c => c.classList.remove('active'));
+          el.classList.add('active');
+          play(ch.url);
+        };
+        box.appendChild(el);
+      });
+    }
+
+    function play(url) {
+      if (hls) hls.destroy();
+      if (Hls.isSupported()) {
+        hls = new Hls();
+        hls.loadSource(url);
+        hls.attachMedia(video);
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = url; // Safari native HLS
+      }
+    }
+
+    loadPlaylist();
+  </script>
+</body>
+</html>
