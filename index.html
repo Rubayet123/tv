@@ -159,6 +159,129 @@ video{width:100%;height:100%;object-fit:contain;background:#000}
 .player{cursor:default}
 .player.cursorHidden{cursor:none}
 
+
+/* Isolated compact TV channel cards */
+.channelBrowserGrid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:7px;
+  overflow-y:auto;
+  overflow-x:hidden;
+  align-content:start;
+  min-height:0;
+  flex:1;
+  padding:1px 2px 4px 0;
+}
+.tvChannelCard{
+  position:relative;
+  min-width:0;
+  min-height:104px;
+  height:auto;
+  display:flex;
+  flex-direction:column;
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:10px;
+  overflow:hidden;
+  cursor:pointer;
+  transition:transform .16s,border-color .16s,box-shadow .16s;
+}
+.tvChannelCard:hover{
+  transform:translateY(-1px);
+  border-color:rgba(255,255,255,.18);
+}
+.tvChannelCard.active{
+  border-color:var(--accent);
+  box-shadow:0 0 0 1px var(--accent),0 7px 18px rgba(0,0,0,.22);
+}
+.tvChannelLogo{
+  height:64px;
+  flex:0 0 64px;
+  display:grid;
+  place-items:center;
+  position:relative;
+  background:linear-gradient(145deg,#171a20,#0c0e11);
+}
+.tvChannelLogo img{
+  display:block;
+  width:48px;
+  height:48px;
+  object-fit:contain;
+  padding:4px;
+}
+.tvChannelName{
+  min-width:0;
+  padding:6px 7px 1px;
+  color:var(--text);
+  font-size:10px;
+  line-height:13px;
+  font-weight:750;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.tvChannelMeta{
+  min-width:0;
+  padding:1px 7px 7px;
+  color:var(--muted);
+  font-size:8px;
+  line-height:11px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.tvChannelLive{
+  position:absolute;
+  left:5px;
+  top:5px;
+  z-index:2;
+  font-size:7px;
+  line-height:12px;
+  font-weight:850;
+  padding:0 4px;
+  border-radius:3px;
+  background:var(--accent);
+  color:#fff;
+}
+.tvChannelFav{
+  position:absolute;
+  right:5px;
+  top:5px;
+  z-index:3;
+  width:22px;
+  height:22px;
+  border:0;
+  border-radius:6px;
+  display:grid;
+  place-items:center;
+  background:rgba(0,0,0,.52);
+  color:#fff;
+  cursor:pointer;
+}
+.tvChannelFav.active{color:var(--accent)}
+.tvChannelFailed{opacity:.52}
+.channelBrowser .emptyState{
+  grid-column:1/-1;
+  min-height:100px;
+  display:grid;
+  place-items:center;
+  color:var(--muted);
+  font-size:11px;
+}
+@media(max-width:1180px){
+  .channelBrowserGrid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:900px){
+  .channelBrowserGrid{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+@media(max-width:650px){
+  .channelBrowserGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .tvChannelCard{min-height:116px}
+  .tvChannelLogo{height:70px;flex-basis:70px}
+  .tvChannelLogo img{width:52px;height:52px}
+  .tvChannelName{font-size:10px}
+}
+
 </style>
 </head>
 <body>
@@ -515,15 +638,72 @@ function renderHome() {
   $("favoritesSection").style.display = fav.length ? "block" : "none";
 }
 
+
 function browserChannels() {
   let arr = state.channels.slice();
   const q = String(state.browserSearch || "").trim().toLowerCase();
   const cat = state.browserCategory || "all";
-  if (cat !== "all") arr = arr.filter(c => String(c.category || "").toLowerCase() === cat.toLowerCase());
-  if (q) arr = arr.filter(c => [c.name, c.category, c.country, c.language, c.source, c.id]
-    .some(v => String(v || "").toLowerCase().includes(q)));
+  if (cat !== "all") {
+    arr = arr.filter(c => String(c.category || "").toLowerCase() === cat.toLowerCase());
+  }
+  if (q) {
+    arr = arr.filter(c => [
+      c.name, c.category, c.country, c.language, c.source, c.id
+    ].some(v => String(v || "").toLowerCase().includes(q)));
+  }
   return arr;
 }
+
+function browserCard(ch) {
+  const el = document.createElement("article");
+  el.className = "tvChannelCard" + (state.current?.url === ch.url ? " active" : "");
+  el.dataset.channelUrl = ch.url;
+
+  const fav = document.createElement("button");
+  fav.className = "tvChannelFav" + (isFav(ch) ? " active" : "");
+  fav.title = "Favorite";
+  fav.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="${isFav(ch) ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.9"><path d="m12 20-1.45-1.32C5.4 14.36 2 11.27 2 7.5A5.5 5.5 0 0 1 7.5 2c1.74 0 3.41.81 4.5 2.09A6.02 6.02 0 0 1 16.5 2 5.5 5.5 0 0 1 22 7.5c0 3.77-3.4 6.86-8.55 11.18z"/></svg>`;
+  fav.onclick = e => {
+    e.stopPropagation();
+    toggleFavorite(ch);
+    renderChannelBrowser();
+  };
+
+  const visual = document.createElement("div");
+  visual.className = "tvChannelLogo";
+
+  const live = document.createElement("span");
+  live.className = "tvChannelLive";
+  live.textContent = "LIVE";
+
+  const img = document.createElement("img");
+  img.loading = "lazy";
+  img.decoding = "async";
+  img.referrerPolicy = "no-referrer";
+  img.alt = ch.name || "TV";
+  img.src = ch.logo || PLACEHOLDER(ch.name);
+  img.onerror = () => {
+    img.onerror = null;
+    img.src = PLACEHOLDER(ch.name);
+  };
+
+  visual.append(live, img);
+
+  const name = document.createElement("div");
+  name.className = "tvChannelName";
+  name.textContent = ch.name || "Unknown channel";
+  name.title = ch.name || "";
+
+  const meta = document.createElement("div");
+  meta.className = "tvChannelMeta";
+  meta.textContent = [ch.category, ch.country].filter(Boolean).join(" • ") || "Live TV";
+
+  el.append(fav, visual, name, meta);
+
+  el.onclick = () => selectChannel(ch);
+  return el;
+}
+
 function renderChannelBrowser() {
   const grid = $("browserGrid");
   const count = $("browserCount");
@@ -531,9 +711,13 @@ function renderChannelBrowser() {
   if (!grid || !count || !select) return;
 
   const current = state.browserCategory || "all";
-  select.innerHTML = '<option value="all">All categories</option>' +
-    categories().map(([c, n]) => `<option value="${esc(c)}">${esc(c)} (${n})</option>`).join("");
-  select.value = categories().some(([c]) => c === current) ? current : "all";
+  const cats = categories();
+
+  select.innerHTML =
+    '<option value="all">All categories</option>' +
+    cats.map(([c, n]) => `<option value="${esc(c)}">${esc(c)} (${n})</option>`).join("");
+
+  select.value = cats.some(([c]) => c === current) ? current : "all";
   state.browserCategory = select.value;
 
   const arr = browserChannels();
@@ -541,20 +725,22 @@ function renderChannelBrowser() {
   grid.innerHTML = "";
 
   if (!arr.length) {
-    grid.innerHTML = '<div class="emptyState" style="grid-column:1/-1">No channels found.</div>';
+    grid.innerHTML = '<div class="emptyState">No channels found.</div>';
     return;
   }
 
-  arr.forEach(c => {
-    const el = card(c);
-    el.dataset.channelUrl = c.url;
-    if (state.current?.url === c.url) el.classList.add("channelActive");
-    grid.appendChild(el);
+  const frag = document.createDocumentFragment();
+  arr.forEach(ch => {
+    const el = browserCard(ch);
+    if (state.failedUrls.has(ch.url)) el.classList.add("tvChannelFailed");
+    frag.appendChild(el);
   });
+  grid.appendChild(frag);
 }
+
 function updateBrowserActive() {
-  document.querySelectorAll("#browserGrid .card").forEach(el => {
-    el.classList.toggle("channelActive", el.dataset.channelUrl === state.current?.url);
+  document.querySelectorAll("#browserGrid .tvChannelCard").forEach(el => {
+    el.classList.toggle("active", el.dataset.channelUrl === state.current?.url);
   });
 }
 
